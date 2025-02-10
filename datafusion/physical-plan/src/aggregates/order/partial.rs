@@ -16,7 +16,6 @@
 // under the License.
 
 use arrow::array::ArrayRef;
-use arrow::row::SortField;
 use arrow_ord::partition::partition;
 use arrow_schema::{Schema, SortOptions};
 use datafusion_common::utils::{compare_rows, get_row_at_idx};
@@ -28,7 +27,6 @@ use std::cmp::Ordering;
 use std::mem::size_of;
 use std::sync::Arc;
 
-use crate::sorts::sort;
 
 /// Tracks grouping state when the data is ordered by some subset of
 /// the group keys.
