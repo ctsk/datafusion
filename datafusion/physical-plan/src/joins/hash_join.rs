@@ -85,6 +85,7 @@ use datafusion_physical_expr_common::datum::compare_op_for_nested;
 use ahash::RandomState;
 use datafusion_physical_expr_common::physical_expr::fmt_sql;
 use futures::{ready, Stream, StreamExt, TryStreamExt};
+use log::{info, warn};
 use parking_lot::Mutex;
 
 /// HashTable and input data for the left (build side) of a join
@@ -1070,6 +1071,33 @@ where
 
     // calculate the hash values
     let hash_values = create_hashes(&keys_values, random_state, hashes_buffer)?;
+
+    {
+        // We compute the common bits of the hash_values: 
+        // This means
+        //  1. compute the max value for each bit
+        //  2. compute the min value for each bit
+        //  3. where max == min, all hashes have a common bit
+        //  4. warn when the number of common least significant bits is greater than 0;
+
+        let bitwise_min = hash_values.iter().copied().reduce(|a, b| a & b).expect("hash_values may not be empty");
+        let bitwise_max = hash_values.iter().copied().reduce(|a, b| a | b).expect("hash_values may not be empty");
+
+        let nth_bit = |x, n| (x >> n) & 1u64;
+        let common_lsb = (0..64).take_while(
+            |&n| { nth_bit(bitwise_min, n) == nth_bit(bitwise_max, n) }
+        ).count();
+
+        if common_lsb > 0 {
+            warn!(
+                "batch shares {common_lsb} common bits"
+            )
+        } else {
+            warn!(
+                "yay! this batch does not share any bits"
+            )
+        }
+    }
 
     // For usual JoinHashmap, the implementation is void.
     hash_map.extend_zero(batch.num_rows());
